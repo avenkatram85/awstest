@@ -1,0 +1,68 @@
+jobs:
+- name: terraform-plan
+  plan:
+  - get: awstest
+  - put: terraform
+    params:
+      env_name: staging
+      terraform_source: awstest
+      plan_only: true
+
+- name: terraform-apply
+  plan:
+  - get: awstest
+    trigger: true
+    passed: [terraform-plan]
+  - get: terraform
+    trigger: true
+    passed: [terraform-plan]
+  - put: terraform
+    params:
+      env_name: staging
+      terraform_source: awstest
+      plan_run: true
+
+- name: terraform-destroy
+  plan:
+  - get: awstest
+    trigger: false
+    passed: [terraform-apply]
+  - get: terraform
+    trigger: false
+    passed: [terraform-apply]
+  - put: terraform
+    params:
+      action: destroy
+      env_name: staging
+      terraform_source: awstest
+      plan_run: true
+    get_params:
+      action: destroy
+
+resource_types:
+- name: terraform
+  type: docker-image
+  source:
+    repository: ljfranklin/terraform-resource
+    tag: latest
+
+resources:
+  - name: terraform
+    type: terraform
+    source:
+      env_name: staging
+      backend_type: s3
+      backend_config:
+        bucket: ccpawstest
+        key: mydir/terraform.tfstate
+        region: us-west-1
+        access_key: {{storage_access_key}}
+        secret_key: {{storage_secret_key}}
+      env:
+        AWS_ACCESS_KEY_ID: {{environment_access_key}}
+        AWS_SECRET_ACCESS_KEY: {{environment_secret_key}}
+
+  - name: awstest
+    type: git
+    source:
+      uri: https://github.com/avenkatram85/awstest.git
